@@ -1,0 +1,41 @@
+{
+  "name": "contract-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the Contract gateway: one master key, every tool. npx contract-mcp --key ct_\u2026",
+  "type": "module",
+  "bin": {
+    "contract-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhixuanlucasfeng-cmyk/contract",
+    "directory": "mcp"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "codex",
+    "ai-agents",
+    "tools",
+    "gateway"
+  ],
+  "author": "zhixuanlucasfeng-cmyk",
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "contract-lite",
+  "version": "0.1.0",
+  "description": "One master key for every agent tool: search and scrape with automatic failover (also mid-stream), MCP server, credits and a dashboard.",
+  "type": "module",
+  "bin": { "contract-lite": "cli.mjs" },
+  "scripts": { "start": "node cli.mjs serve", "test": "node --test" },
+  "engines": { "node": ">=22.5" },
+  "license": "MIT",
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.32.1" }
+}

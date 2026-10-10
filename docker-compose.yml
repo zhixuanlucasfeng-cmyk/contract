@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: contract, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-contract}", POSTGRES_DB: contract }
+    volumes: [ "pg:/var/lib/postgresql/data", "./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro" ]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U contract"], interval: 3s, retries: 20 }
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [ "redis:/data" ]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 3s, retries: 20 }
+
+  gateway:
+    build: .
+    env_file: [ .env ]
+    environment:
+      DATABASE_URL: postgres://contract:${POSTGRES_PASSWORD:-contract}@postgres:5432/contract
+      REDIS_URL: redis://redis:6379
+      CONTRACT_FAULTS: ${CONTRACT_FAULTS:-}   # failover drills, e.g. '{"jina":"drop:3"}'
+    ports: [ "${PORT:-8080}:8080" ]
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["node", "dist/worker.js"]
+    env_file: [ .env ]
+    environment:
+      DATABASE_URL: postgres://contract:${POSTGRES_PASSWORD:-contract}@postgres:5432/contract
+      REDIS_URL: redis://redis:6379
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
+    restart: unless-stopped
+
+volumes: { pg: {}, redis: {} }

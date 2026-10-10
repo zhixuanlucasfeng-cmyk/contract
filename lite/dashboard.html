@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contract Lite</title>
+<style>
+  :root { --bg:#0b0d16; --card:#131624; --line:#262b45; --text:#e9e7f2; --dim:#8c89a6; --acc:#ff5a36; --ok:#5fd49a; --bad:#ff7a6a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.55 -apple-system, "PingFang SC", system-ui, sans-serif; }
+  main { max-width:1000px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:22px; margin:0 0 4px; } h1 span { color:var(--acc); }
+  h2 { font-size:15px; margin:26px 0 10px; color:var(--dim); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input, select, button, textarea { font:inherit; color:var(--text); background:#0b0d16; border:1px solid var(--line); border-radius:8px; padding:7px 10px; }
+  input { flex:1; min-width:220px; } button { cursor:pointer; background:#1d2136; } button.pri { background:var(--acc); border-color:var(--acc); color:#fff; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; }
+  .stat b { display:block; font-size:24px; } .stat small { color:var(--dim); }
+  table { width:100%; border-collapse:collapse; font-size:13px; } th, td { text-align:left; padding:6px 8px; border-top:1px solid var(--line); } th { color:var(--dim); font-weight:500; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .dim { color:var(--dim); } code { font-size:12px; }
+  pre { white-space:pre-wrap; background:#0b0d16; border:1px solid var(--line); border-radius:8px; padding:10px; max-height:360px; overflow:auto; font-size:12.5px; }
+  .hide { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Contract <span>Lite</span></h1>
+  <div class="dim">一个主密钥，所有工具。自动故障转移，流式中途无缝切换。</div>
+
+  <h2>主密钥</h2>
+  <div class="card row">
+    <input id="key" type="password" placeholder="ct_…（只存在这个浏览器标签页里）">
+    <button class="pri" id="go">查看</button>
+    <button id="rotate">重置密钥</button>
+  </div>
+
+  <div id="app" class="hide">
+    <h2>额度</h2>
+    <div class="stats">
+      <div class="card stat"><b id="credits">–</b><small>剩余积分</small></div>
+      <div class="card stat"><b id="used">–</b><small>已用积分</small></div>
+      <div class="card stat"><b id="hint">–</b><small>当前密钥</small></div>
+    </div>
+
+    <h2>服务商健康</h2>
+    <div class="card"><table id="health"></table></div>
+
+    <h2>试一下（流式）</h2>
+    <div class="card">
+      <div class="row"><select id="tool"></select><input id="arg" placeholder="搜索词或网址"><button class="pri" id="run">运行</button></div>
+      <pre id="out" class="dim">结果会一条条流出来；主服务商中途挂掉时，后面的条目会由备用服务商接上。</pre>
+    </div>
+
+    <h2>最近调用</h2>
+    <div class="card"><table id="recent"></table></div>
+
+    <h2>按天统计</h2>
+    <div class="card"><table id="days"></table></div>
+  </div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+let key = (() => { try { return sessionStorage.getItem('ct') || ''; } catch { return ''; } })();
+$('#key').value = key;
+const api = (p, init = {}) => fetch(p, { ...init, headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' } });
+
+async function load() {
+  key = $('#key').value.trim(); try { sessionStorage.setItem('ct', key); } catch {}
+  const b = await api('/v1/account/balance');
+  if (!b.ok) { alert((await b.json()).error.message); return; }
+  const bal = await b.json(), u = await (await api('/v1/account/usage')).json(), cat = await (await api('/v1/tools')).json();
+  $('#app').classList.remove('hide');
+  $('#credits').textContent = bal.credits; $('#used').textContent = bal.used; $('#hint').textContent = bal.key;
+  $('#health').innerHTML = '<tr><th>工具</th><th>服务商（优先级从左到右）</th></tr>' + Object.entries(u.providers).map(([t, ps]) =>
+    `<tr><td><code>${t}</code></td><td>${ps.map((p) => `<span class="${!p.configured ? 'dim' : p.cooling ? 'bad' : 'ok'}">${p.id}${!p.configured ? '（没配密钥）' : p.cooling ? '（冷却中）' : ''}</span>`).join(' → ')}</td></tr>`).join('');
+  $('#recent').innerHTML = '<tr><th>时间</th><th>工具</th><th>服务商</th><th>结果</th><th>耗时</th><th>故障转移</th></tr>' + u.recent.map((r) =>
+    `<tr><td class="dim">${r.at.slice(5, 16)}</td><td>${r.tool}</td><td>${esc(r.provider)}</td><td class="${r.ok ? 'ok' : 'bad'}">${r.ok ? '成功' : '失败'}</td><td>${r.ms}ms</td><td class="dim">${JSON.parse(r.failed_over).map((f) => esc(`${f.provider}: ${f.error}`)).join('<br>')}</td></tr>`).join('');
+  $('#days').innerHTML = '<tr><th>日期</th><th>工具</th><th>调用</th><th>积分</th><th>错误</th></tr>' + u.byDay.map((d) => `<tr><td>${d.day}</td><td>${d.tool}</td><td>${d.calls}</td><td>${d.credits}</td><td>${d.errors}</td></tr>`).join('');
+  $('#tool').innerHTML = Object.values(cat.categories).flat().map((t) => `<option value="${t.name}" data-arg="${Object.keys(t.input_schema.properties)[0]}">${t.name} · ${esc(t.description.slice(0, 30))}</option>`).join('');
+}
+
+$('#go').onclick = load;
+$('#rotate').onclick = async (e) => {
+  if (!e.target.dataset.armed) { e.target.dataset.armed = 1; e.target.textContent = '再点一次确认'; return; }
+  const r = await (await api('/v1/account/rotate', { method: 'POST' })).json();
+  $('#key').value = r.key; e.target.textContent = '已重置（新密钥已填入，旧的失效）'; delete e.target.dataset.armed; load();
+};
+$('#run').onclick = async () => {
+  const opt = $('#tool').selectedOptions[0], out = $('#out'); out.textContent = ''; out.classList.remove('dim');
+  const r = await api(`/v1/tools/${opt.value}/execute`, { method: 'POST', body: JSON.stringify({ params: { [opt.dataset.arg]: $('#arg').value }, stream: true }) });
+  if (!r.ok) { out.textContent = (await r.json()).error.message; return; }
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true }); let i;
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const e = JSON.parse(buf.slice(0, i)); buf = buf.slice(i + 1);
+      out.textContent += e.type === 'item' ? `[${e.data.provider}] ${e.data.title ?? e.data.text ?? ''}${e.data.url ? '  ' + e.data.url : ''}\n` : `— ${e.type} ${JSON.stringify(e.error ?? { credits: e.credits, providers: e.providers })}\n`;
+    }
+  }
+  load();
+};
+if (key) load();
+</script>
+</body>
+</html>
