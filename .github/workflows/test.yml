@@ -1,0 +1,31 @@
+name: test
+on: [push, pull_request]
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: gateway } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npx tsc -p .
+      - run: npm test
+  lite:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: lite } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm test
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: cd mcp && npm ci && npx tsc -p .
+      - run: cd dashboard && npm ci && npx vite build
+      - run: docker build -t contract .
