@@ -17,7 +17,8 @@ export const cryptoTools: Record<string, Tool> = {
         const q = x.quote[cur];
         yield { symbol: x.symbol, name: x.name, price: q.price, currency, change_24h_pct: num(q.percent_change_24h), market_cap: num(q.market_cap), time: iso(q.last_updated), source: 'coinmarketcap' };
       } },
-      { id: 'coingecko', probe: { coin: 'bitcoin', currency: 'usd' }, async *stream({ coin, currency }, c) {
+      { id: 'coingecko', probe: { coin: 'bitcoin', currency: 'usd' }, async *stream({ coin, currency: cur }, c) {
+        const currency = String(cur).toLowerCase();
         const s = await json(await get(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(coin)}`, c));
         const hit = s.coins?.find((x: any) => x.symbol?.toLowerCase() === String(coin).toLowerCase() || x.id === String(coin).toLowerCase()) ?? s.coins?.[0];
         if (!hit) return;
